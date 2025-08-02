@@ -21,7 +21,7 @@ void spinwait(uint32_t wait);
 static void HandlePDNSCommands(void)
 {
     u32 *cmdbuf = getThreadCommandBuffer();
-    switch(cmdbuf[0] >> 16)
+    switch((cmdbuf[0] >> 16) & 0xFFFF)
     {
     case 1:
         cmdbuf[0] = IPC_MakeHeader(0x1, 3, 0);
@@ -32,7 +32,7 @@ static void HandlePDNSCommands(void)
 
     case 2:
         *PDN_WAKE_REASON = cmdbuf[2] & cmdbuf[1];
-        *PDN_WAKE_REASON = cmdbuf[1];
+        *PDN_WAKE_ENABLE = cmdbuf[1];
         *PDN_WAKE_REASON = (cmdbuf[2] & ~cmdbuf[1]);
         cmdbuf[0] = IPC_MakeHeader(0x2, 1, 0);
         cmdbuf[1] = 0;
@@ -50,26 +50,26 @@ static void HandlePDNSCommands(void)
     }
 }
 
-static int ControlDSPCNT(bool enable, bool resetengines, bool resetregisters)
+static int ControlDSPCNT(u8 enable, u8 resetengines, u8 resetregisters)
 {
-    if ( (resetregisters & ~(u8)enable) != 0 )
+    if ( (resetregisters & ~enable) != 0 )
         return 0;
     *PDN_DSP_CNT = (resetengines ^ 1) | (2 * enable);
     if((resetengines & resetregisters) != 0)
     {
         spinwait(48);
-        *PDN_DSP_CNT = (2 * resetregisters) | 1;
+        *PDN_DSP_CNT = (2 * enable) | 1;
     }
     return 1;
 }
 
-static void HandlePDNDCommands(void) 
+static void HandlePDNDCommands(void)
 {
     u32 *cmdbuf = getThreadCommandBuffer();
-    switch(cmdbuf[0] >> 16)
+    switch((cmdbuf[0] >> 16) & 0xFFFF)
     {
     case 1:
-        if(ControlDSPCNT(cmdbuf[1], cmdbuf[2], cmdbuf[3]))
+        if(ControlDSPCNT(cmdbuf[1] & 0xFF, cmdbuf[2] & 0xFF, cmdbuf[3] & 0xFF))
             cmdbuf[1] = 0;
         else
             cmdbuf[1] = PDN_INVALID_ARG;
@@ -85,16 +85,16 @@ static void HandlePDNDCommands(void)
 static void HandlePDNICommands(void)
 {
     u32 *cmdbuf = getThreadCommandBuffer();
-    switch(cmdbuf[0] >> 16)
+    switch((cmdbuf[0] >> 16) & 0xFFFF)
     {
     case 1:
-        *PDN_I2S_CNT = ((u8)cmdbuf[1] | (*PDN_I2S_CNT & ~1));
+        *PDN_I2S_CNT = ((u8)cmdbuf[1] | (*PDN_I2S_CNT & 0xFE));
         cmdbuf[0] = IPC_MakeHeader(0x1, 1, 0);
         cmdbuf[1] = 0;
         break;
 
     case 2:
-        *PDN_I2S_CNT = ((*PDN_I2S_CNT & ~2) | ((u8)cmdbuf[1]) << 1);
+        *PDN_I2S_CNT = ((*PDN_I2S_CNT & 0xFD) | ((u8)cmdbuf[1]) << 1);
         cmdbuf[0] = IPC_MakeHeader(0x2, 1, 0);
         cmdbuf[1] = 0;
         break;
@@ -105,9 +105,9 @@ static void HandlePDNICommands(void)
     }
 }
 
-static int ControlGPUCNT(bool enable, bool resetengines, bool resetregisters)
+static int ControlGPUCNT(u8 enable, u8 resetengines, u8 resetregisters)
 {
-    if(((resetengines | resetregisters) & ~(u8)enable) != 0)
+    if(((resetengines | resetregisters) & ~enable) != 0)
         return 0;
     *PDN_GPU_CNT = ((!resetregisters ? 126 : 0) | (enable ? BIT(16) : 0) | (resetengines ^ 1));
     if(resetengines | resetregisters)
@@ -121,10 +121,10 @@ static int ControlGPUCNT(bool enable, bool resetengines, bool resetregisters)
 static void HandlePDNGCommands(void)
 {
     u32 *cmdbuf = getThreadCommandBuffer();
-    switch(cmdbuf[0] >> 16)
+    switch((cmdbuf[0] >> 16) & 0xFFFF)
     {
     case 1:
-        if(ControlGPUCNT(cmdbuf[1], cmdbuf[2], cmdbuf[3]))
+        if(ControlGPUCNT(cmdbuf[1] & 0xFF, cmdbuf[2] & 0xFF, cmdbuf[3] & 0xFF))
             cmdbuf[1] = 0;
         else
             cmdbuf[1] = PDN_INVALID_ARG;
@@ -140,7 +140,7 @@ static void HandlePDNGCommands(void)
 static void HandlePDNCCommands(void)
 {
     u32 *cmdbuf = getThreadCommandBuffer();
-    switch(cmdbuf[0] >> 16)
+    switch((cmdbuf[0] >> 16) & 0xFFFF)
     {
     case 1:
         *PDN_CAMERA_CNT = (u8)cmdbuf[1] | (*PDN_CAMERA_CNT & 0xFE);
